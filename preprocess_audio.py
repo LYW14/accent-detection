@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import librosa.display
 
 # ==== CONFIG ====
-CSV_PATH = "commonvoice/cv-valid-train.csv"
 AUDIO_BASE = "commonvoice"
 OUTPUT_DIR = "processed_data"
 SAMPLE_RATE = 16000
@@ -25,22 +24,27 @@ def preprocess_audio(file_path, sr=SAMPLE_RATE, n_mels=N_MELS):
     return S_dB
 
 if __name__ == "__main__":
-    df = pd.read_csv(CSV_PATH)
+    for split in ["train", "dev", "test"]: #processing each split stored in different folders
+        CSV_PATH = f"commonvoice/cv-valid-{split}.csv"
 
-    # Filter for files that actually exist
-    file_list = []
-    for rel_path in df["filename"].dropna():
-        full_path = os.path.join(AUDIO_BASE, rel_path)
-        if os.path.exists(full_path):
-            file_list.append(full_path)
+        print(f"\n=== Processing {split} split ===")
 
-    print(f"Found {len(file_list)} valid audio files. Processing...")
+        df = pd.read_csv(CSV_PATH)
 
-    for file_path in tqdm(file_list[:100]):  # limit to 100 for now
-        try:
-            S_dB = preprocess_audio(file_path)
-            np.save(os.path.join(OUTPUT_DIR, os.path.basename(file_path).replace(".mp3", ".npy")), S_dB)
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}")
+        # Filter for files that actually exist
+        file_list = []
+        for rel_path in df["filename"].dropna():
+            full_path = os.path.join(AUDIO_BASE, rel_path)
+            if os.path.exists(full_path):
+                file_list.append(full_path)
 
-    print("Done! Spectrograms saved in:", OUTPUT_DIR)
+        print(f"Found {len(file_list)} valid audio files. Processing...")
+
+        for file_path in tqdm(file_list):  # limit to 100 for now
+            try:
+                S_dB = preprocess_audio(file_path)
+                np.save(os.path.join(OUTPUT_DIR, os.path.basename(file_path).replace(".mp3", ".npy")), S_dB)
+            except Exception as e:
+                print(f"Error processing {file_path}: {e}")
+
+        print(f"Done! {split} spectrograms saved in:", OUTPUT_DIR)
