@@ -6,3 +6,7 @@ preprocessed_data/
 .ipynb_checkpoints/
 .DS_Store
 
+commonvoice/
+*.png
+*.csv
+processed_data/
