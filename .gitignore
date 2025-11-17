@@ -10,3 +10,4 @@ commonvoice/
 *.png
 *.csv
 processed_data/
+.pkl

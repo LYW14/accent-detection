@@ -14,65 +14,86 @@ from sklearn.metrics import confusion_matrix, classification_report
 TRAIN_CSV = "labeled_dataset_train.csv"
 DEV_CSV = "labeled_dataset_dev.csv"
 TEST_CSV = "labeled_dataset_test.csv"
+CACHE_FILE = "cached_data.pkl" 
 # ================
 
 print("="*60)
 print("LOADING DATA")
 print("="*60)
-
-#load data
-df_train = pd.read_csv(TRAIN_CSV)
-df_dev = pd.read_csv(DEV_CSV)
-df_test = pd.read_csv(TEST_CSV)
-
-#encode accent labels
-encoder = LabelEncoder()
-y_train = encoder.fit_transform(df_train["accent"])
-y_dev = encoder.transform(df_dev["accent"])
-y_test = encoder.transform(df_test["accent"])
-num_classes = len(encoder.classes_)
+#try to load from cache first
+if os.path.exists(CACHE_FILE):
+    print(f"Loading cached data from {CACHE_FILE}...")
+    import pickle
+    with open(CACHE_FILE, 'rb') as f:
+        cache = pickle.load(f)
+    X_train, X_dev, X_test = cache['X_train'], cache['X_dev'], cache['X_test']
+    y_train, y_dev, y_test = cache['y_train'], cache['y_dev'], cache['y_test']
+    encoder = cache['encoder']
+    num_classes = len(encoder.classes_)
+    print("✓ Loaded from cache!")
+else:
+    print("No cache found. Loading from disk (this will take a while)...")
+    import pickle
+    
+    #load data
+    df_train = pd.read_csv(TRAIN_CSV)
+    df_dev = pd.read_csv(DEV_CSV)
+    df_test = pd.read_csv(TEST_CSV)
+    
+    #encode accent labels
+    encoder = LabelEncoder()
+    y_train = encoder.fit_transform(df_train["accent"])
+    y_dev = encoder.transform(df_dev["accent"])
+    y_test = encoder.transform(df_test["accent"])
+    num_classes = len(encoder.classes_)
+    
+    #load spectrograms - now they're MFCCs
+    def load_mfcc_features(df, max_width=250):
+        X = []
+        for path in df["spectrogram"]:
+            S = np.load(path)
+            if S.shape[1] < max_width:
+                pad_width = max_width - S.shape[1]
+                S = np.pad(S, ((0, 0), (0, pad_width)), mode='constant')
+            else:
+                S = S[:, :max_width]
+            X.append(S)
+        return np.array(X)
+    
+    X_train = load_mfcc_features(df_train)
+    X_dev = load_mfcc_features(df_dev)
+    X_test = load_mfcc_features(df_test)
+    
+    #normalize using mean and std of training set
+    X_train_mean = X_train.mean()
+    X_train_std = X_train.std()
+    X_train = (X_train - X_train_mean) / X_train_std
+    X_dev = (X_dev - X_train_mean) / X_train_std
+    X_test = (X_test - X_train_mean) / X_train_std
+    
+    #add channel dimension
+    X_train = X_train[..., np.newaxis]
+    X_dev = X_dev[..., np.newaxis]
+    X_test = X_test[..., np.newaxis]
+    
+    #save to cache
+    print(f"Saving to cache: {CACHE_FILE}")
+    with open(CACHE_FILE, 'wb') as f:
+        pickle.dump({
+            'X_train': X_train, 'X_dev': X_dev, 'X_test': X_test,
+            'y_train': y_train, 'y_dev': y_dev, 'y_test': y_test,
+            'encoder': encoder
+        }, f)
+    print("✓ Cache saved!")
 
 print(f"Classes: {list(encoder.classes_)}")
 print(f"Train samples: {len(y_train)}, Dev: {len(y_dev)}, Test: {len(y_test)}")
-
-#load spectrograms - now they're MFCCs
-def load_mfcc_features(df, max_width=250):
-    X = []
-    for path in df["spectrogram"]:
-        S = np.load(path)
-        if S.shape[1] < max_width:
-            pad_width = max_width - S.shape[1]
-            S = np.pad(S, ((0, 0), (0, pad_width)), mode='constant')
-        else:
-            S = S[:, :max_width]
-        X.append(S)
-    return np.array(X)
-
-X_train = load_mfcc_features(df_train)
-X_dev = load_mfcc_features(df_dev)
-X_test = load_mfcc_features(df_test)
-
-#normalize using mean and std of training set
-X_train_mean = X_train.mean()
-X_train_std = X_train.std()
-
-X_train = (X_train - X_train_mean) / X_train_std
-X_dev = (X_dev - X_train_mean) / X_train_std
-X_test = (X_test - X_train_mean) / X_train_std
-
-#add channel dimension
-X_train = X_train[..., np.newaxis]
-X_dev = X_dev[..., np.newaxis]
-X_test = X_test[..., np.newaxis]
-
-print(f"X_train shape: {X_train.shape}")  #should be (19901, 60, 500, 1)
+print(f"X_train shape: {X_train.shape}")
+print(f"Data range: [{X_train.min():.3f}, {X_train.max():.3f}], mean: {X_train.mean():.3f}")
 
 y_train_cat = to_categorical(y_train, num_classes)
 y_dev_cat = to_categorical(y_dev, num_classes)
 y_test_cat = to_categorical(y_test, num_classes)
-
-print(f"X_train shape: {X_train.shape}")
-print(f"Data range: [{X_train.min():.3f}, {X_train.max():.3f}], mean: {X_train.mean():.3f}")
 
 # ==================================================================
 # BUILD LSTM MODEL
@@ -100,16 +121,9 @@ model = Sequential([
     MaxPooling2D((2, 2)),
     Dropout(0.3),
     
-    # GlobalAveragePooling2D(),
-    # Dense(256, activation='relu'),
-    # Dropout(0.5),
-    # Dense(num_classes, activation='softmax')
-    Reshape((7*31, 128)),
-
-    # Just ONE LSTM layer
-    LSTM(128),  # No bidirectional, no stacking
-    Dropout(0.4),
-
+    GlobalAveragePooling2D(),
+    Dense(128, activation='relu'),
+    Dropout(0.5),
     Dense(num_classes, activation='softmax')
 ])
 
