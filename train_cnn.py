@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization, GlobalAveragePooling2D
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization, Bidirectional,  GlobalAveragePooling2D
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import LabelEncoder
@@ -86,22 +86,33 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 model = Sequential([
     Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=X_train.shape[1:]),
+    BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    Dropout(0.3),
     
     Conv2D(64, (3, 3), activation='relu', padding='same'),
+    BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    Dropout(0.3),
     
     Conv2D(128, (3, 3), activation='relu', padding='same'),
+    BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    Dropout(0.3),
     
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dropout(0.5),
+    # GlobalAveragePooling2D(),
+    # Dense(256, activation='relu'),
+    # Dropout(0.5),
+    # Dense(num_classes, activation='softmax')
+    Reshape((7*31, 128)),
+
+    # Just ONE LSTM layer
+    LSTM(128),  # No bidirectional, no stacking
+    Dropout(0.4),
+
     Dense(num_classes, activation='softmax')
 ])
+
 model.summary()
 
 model.compile(
@@ -170,7 +181,7 @@ print("\n✓ Saved overfitting_test.png")
 # FULL TRAINING (only if overfitting test passed)
 # ==================================================================
 #UNCOMMENT TO RUN FULL TRAINING EVERY TIME
-#proceed=True 
+proceed=True 
 if proceed:
     print("\n" + "="*60)
     print("TRAINING ON FULL DATASET")
