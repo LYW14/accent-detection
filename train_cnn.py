@@ -104,29 +104,11 @@ print("="*60)
 
 from tensorflow.keras.layers import Reshape, LSTM
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.layers import Reshape, LSTM, TimeDistributed, Permute
 
 model = Sequential([
-    Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=X_train.shape[1:]),
-    BatchNormalization(),
-    MaxPooling2D((2, 2)),
-    Dropout(0.3),
-    
-    Conv2D(64, (3, 3), activation='relu', padding='same'),
-    BatchNormalization(),
-    MaxPooling2D((2, 2)),
-    Dropout(0.3),
-    
-    Conv2D(128, (3, 3), activation='relu', padding='same'),
-    BatchNormalization(),
-    MaxPooling2D((2, 2)),
-    Dropout(0.3),
-    
-    GlobalAveragePooling2D(),
-    Dense(128, activation='relu'),
-    Dropout(0.5),
-    Dense(num_classes, activation='softmax')
-])
 
+])
 model.summary()
 
 model.compile(
