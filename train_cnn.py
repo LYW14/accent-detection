@@ -65,8 +65,9 @@ else:
     X_test = load_mfcc_features(df_test)
     
     #normalize using mean and std of training set
-    X_train_mean = X_train.mean()
-    X_train_std = X_train.std()
+    #use per-feature normalization for better scaling
+    X_train_mean = X_train.mean(axis=(0, 2), keepdims=True)  #mean per MFCC coefficient
+    X_train_std = X_train.std(axis=(0, 2), keepdims=True) + 1e-8  #avoid division by zero
     X_train = (X_train - X_train_mean) / X_train_std
     X_dev = (X_dev - X_train_mean) / X_train_std
     X_test = (X_test - X_train_mean) / X_train_std
@@ -90,7 +91,7 @@ print(f"Classes: {list(encoder.classes_)}")
 print(f"Train samples: {len(y_train)}, Dev: {len(y_dev)}, Test: {len(y_test)}")
 print(f"X_train shape: {X_train.shape}")
 print(f"Data range: [{X_train.min():.3f}, {X_train.max():.3f}], mean: {X_train.mean():.3f}")
-
+print(X_train[0][0, :5, 0])  # print first 5 values of first row of first sample
 y_train_cat = to_categorical(y_train, num_classes)
 y_dev_cat = to_categorical(y_dev, num_classes)
 y_test_cat = to_categorical(y_test, num_classes)
@@ -107,14 +108,26 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Reshape, LSTM, TimeDistributed, Permute
 
 model = Sequential([
-
+    #first conv block
+    Conv2D(32, (3, 3), activation='relu', input_shape=X_train.shape[1:]),
+    MaxPooling2D((2, 2)),
+    
+    #second conv block
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    
+    #flatten and classify
+    GlobalAveragePooling2D(),
+    Dense(128, activation='relu'),
+    Dropout(0.3),
+    Dense(num_classes, activation='softmax')
 ])
 model.summary()
 
 model.compile(
-    optimizer=Adam(learning_rate=0.001),
+    optimizer=Adam(learning_rate=0.0001),
     loss='categorical_crossentropy',
-    metrics=['accuracy']
+    metrics=['accuracy','Precision', 'Recall']
 )
 
 # ==================================================================
